@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AI Studio bridge</title>
+<body style="background:#111;color:#aaa;font:13px sans-serif;padding:12px">AI Studio bridge: receiving images…
+<script>
+// Pages whose security policy blocks localhost (ChatGPT) open this window and postMessage images to it;
+// it stores each one in AI Studio's file store and answers with the /files/ url.
+const ALLOW = ['https://chatgpt.com', 'https://elevenlabs.io'];
+window.addEventListener('message', async (ev) => {
+  if (!ALLOW.includes(ev.origin) || !ev.data || ev.data.kind !== 'aistudio-upload') return;
+  try {
+    const r = await fetch('/api/upload-file', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'x-filename': encodeURIComponent(ev.data.name || 'image.png') }, body: ev.data.blob });
+    const j = await r.json();
+    ev.source.postMessage({ kind: 'aistudio-uploaded', id: ev.data.id, url: j.url }, ev.origin);
+  } catch (e) { ev.source.postMessage({ kind: 'aistudio-uploaded', id: ev.data.id, error: String(e) }, ev.origin); }
+  // one hand-off per window: close as soon as it's done so bridges never pile up
+  setTimeout(() => window.close(), 300);
+});
+if (window.opener) window.opener.postMessage({ kind: 'aistudio-bridge-ready' }, '*');
+// never linger: close after 20 s even if nothing arrived
+setTimeout(() => window.close(), 20000);
+</script>
